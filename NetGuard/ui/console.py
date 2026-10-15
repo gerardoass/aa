@@ -14,6 +14,6 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 # ----------------------------------------------------------------------
-# Tema: import absoluto, sin try/except
+# Tema: import absoluto explicito, sin try/except
 # ----------------------------------------------------------------------
-from ui import theme
+import ui.theme as theme

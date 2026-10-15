@@ -1,41 +1,54 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec - NetGuard v2.0
+PyInstaller spec - NetGuard v2.0 (Optimizado)
 --------------------------------
-Un unico .exe en modo ventana (sin consola), con manifest UAC admin.
-
-Puntos clave del empaquetado:
-  * pathex = raiz del proyecto (SPECPATH) para que `ui` y `core` se
-    resuelvan como paquetes y no como modulos sueltos.
-  * collect_submodules("ui") / collect_submodules("core") garantizan que
-    ui.theme, ui.console, ui.app y todos los modulos de core entren al
-    bundle con su nombre de paquete correcto, sin depender de que el
-    analizador siga imports relativos.
-  * Se compila con:  pyinstaller --clean --noconfirm netguard.spec
+Un unico .exe con manifest UAC admin y soporte para Python 3.14+
 """
 import os
+import sys
 
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
-# ----------------------------------------------------------------------
-# Dependencias de terceros: datos + binarios + submodulos ocultos
-# ----------------------------------------------------------------------
+# 1. Raiz del proyecto en sys.path (SPECPATH = carpeta del .spec)
+_HERE = os.path.abspath(SPECPATH)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+# 2. Dependencias de terceros
 scapy_d, scapy_b, scapy_h = collect_all("scapy")
 ctk_d, ctk_b, ctk_h = collect_all("customtkinter")
 pil_d, pil_b, pil_h = collect_all("PIL")
 
-# ----------------------------------------------------------------------
-# Paquetes propios de NetGuard: inclusion garantizada
-# ----------------------------------------------------------------------
+# 3. Paquetes propios: lista literal + rastreo automatico
+_NETGUARD = [
+    "ui",
+    "ui.app",
+    "ui.console",
+    "ui.theme",
+    "core",
+    "core.admin",
+    "core.arp",
+    "core.flood",
+    "core.latency",
+    "core.netinfo",
+    "core.oui",
+    "core.proc",
+    "core.scanner",
+]
+
 ui_h = collect_submodules("ui")
 core_h = collect_submodules("core")
 
-hidden = (
+print("[netguard.spec] ui   ->", ui_h)
+print("[netguard.spec] core ->", core_h)
+
+hidden = sorted(set(
     scapy_h
     + ctk_h
     + pil_h
     + ui_h
     + core_h
+    + _NETGUARD
     + collect_submodules("scapy.layers")
     + [
         "scapy.arch.windows",
@@ -44,14 +57,12 @@ hidden = (
         "scapy.sendrecv",
         "PIL._tkinter_finder",
     ]
-)
+))
 
-# ----------------------------------------------------------------------
-# Analisis
-# ----------------------------------------------------------------------
+# 4. Analisis de dependencias y empaquetado
 a = Analysis(
     ["main.py"],
-    pathex=[os.path.abspath(SPECPATH)],
+    pathex=[_HERE],
     binaries=scapy_b + ctk_b + pil_b,
     datas=scapy_d + ctk_d + pil_d,
     hiddenimports=hidden,
@@ -70,15 +81,18 @@ a = Analysis(
     ],
     noarchive=False,
     optimize=0,
+    module_collection_mode={
+        "ui": "py",
+        "core": "py",
+    },
 )
 
-pyz = PYZ(a.pure, a.zipped_data)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.zipfiles,
     a.datas,
     [],
     name="NetGuard",
@@ -88,7 +102,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
